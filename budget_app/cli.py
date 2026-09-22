@@ -1,5 +1,6 @@
 import argparse
 from collections.abc import Callable
+from collections import deque
 from pathlib import Path
 from typing import TypeVar
 
@@ -67,6 +68,30 @@ def add_transaction(
     print(f"[저장 완료] id={transaction.id}")
     return 0
 
+def list_transactions(
+    repository: TransactionRepository,
+    limit: int,
+) -> int:
+    """최근 거래를 최신순으로 출력합니다."""
+    if limit <= 0:
+        print("[오류] --limit은 1 이상이어야 합니다.")
+        return 1
+
+    # 파일을 한 줄씩 읽고 최신 N건만 보관합니다.
+    recent = deque(repository.stream(), maxlen=limit)
+
+    if not recent:
+        print("[안내] 저장된 거래가 없습니다.")
+        return 0
+
+    for transaction in reversed(recent):
+        print(
+            f"{transaction.id} | {transaction.date} | "
+            f"{transaction.type} | {transaction.category} | "
+            f"{transaction.amount} | {transaction.memo}"
+        )
+
+    return 0
 
 def main() -> int:
     """가계부 프로그램의 명령어를 처리합니다."""
@@ -81,6 +106,16 @@ def main() -> int:
 
     commands = parser.add_subparsers(dest="command")
     commands.add_parser("add", help="거래를 추가합니다.")
+    list_parser = commands.add_parser(
+        "list",
+        help="최근 거래를 조회합니다.",
+    )
+    list_parser.add_argument(
+        "--limit",
+        type=int,
+        default=10,
+        help="출력할 거래 수 (기본값: 10)",
+    )
 
     category_parser = commands.add_parser(
         "category",
@@ -104,7 +139,10 @@ def main() -> int:
 
     if args.command == "add":
         return add_transaction(category_store, repository)
-
+    
+    if args.command == "list":
+        return list_transactions(repository, args.limit)
+    
     if args.command == "category":
         if args.category_command == "list":
             for name in category_store.get_all():
