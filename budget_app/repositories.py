@@ -1,6 +1,9 @@
 import json
+from collections.abc import Iterator
+from dataclasses import asdict
 from pathlib import Path
 
+from budget_app.models import Transaction
 
 class CategoryStore:
     """카테고리 JSONL 파일을 관리합니다."""
@@ -54,3 +57,40 @@ class CategoryStore:
                     )
 
         return True
+
+class TransactionRepository:
+    """거래 JSONL 파일의 저장과 조회를 담당합니다."""
+
+    def __init__(self, file_path: Path) -> None:
+        self.file_path = file_path
+
+    def stream(self) -> Iterator[Transaction]:
+        """거래를 파일에서 한 줄씩 읽어 반환합니다."""
+        with self.file_path.open("r", encoding="utf-8") as file:
+            for line in file:
+                if line.strip():
+                    data = json.loads(line)
+                    yield Transaction(**data)
+
+    def add(self, transaction: Transaction) -> None:
+        """거래 한 건을 JSONL 파일 끝에 저장합니다."""
+        with self.file_path.open("a", encoding="utf-8") as file:
+            data = asdict(transaction)
+            file.write(json.dumps(data, ensure_ascii=False) + "\n")
+
+    def next_id(self) -> str:
+        """현재 거래 다음에 사용할 고유 ID를 만듭니다."""
+        largest_number = 0
+
+        for transaction in self.stream():
+            number = int(transaction.id.removeprefix("TX-"))
+            largest_number = max(largest_number, number)
+
+        return f"TX-{largest_number + 1:06d}"
+
+    def uses_category(self, category: str) -> bool:
+        """해당 카테고리를 사용 중인 거래가 있는지 확인합니다."""
+        return any(
+            transaction.category == category
+            for transaction in self.stream()
+        )
