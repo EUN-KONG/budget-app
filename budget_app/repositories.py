@@ -2,7 +2,6 @@ import json
 from collections.abc import Iterator
 from dataclasses import asdict
 from pathlib import Path
-from typing import Optional
 
 from budget_app.models import Transaction
 
@@ -121,7 +120,7 @@ class TransactionRepository:
     def find_by_id(
         self,
         transaction_id: str,
-    ) -> Optional[Transaction]:
+    ) -> Transaction | None:
         """ID가 일치하는 거래를 찾아 반환합니다."""
         for transaction in self.stream():
             if transaction.id == transaction_id:
