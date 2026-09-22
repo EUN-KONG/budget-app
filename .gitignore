@@ -216,3 +216,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# 프로그램 실행 중 생성되는 실제 가계부 데이터
+data/
+
+# 파이썬 임시 파일
+*.pyc
