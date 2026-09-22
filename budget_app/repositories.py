@@ -94,3 +94,25 @@ class TransactionRepository:
             transaction.category == category
             for transaction in self.stream()
         )
+
+    def delete(self, transaction_id: str) -> bool:
+        """ID가 일치하는 거래를 삭제합니다."""
+        remaining = []
+        found = False
+
+        for transaction in self.stream():
+            if transaction.id == transaction_id:
+                found = True
+            else:
+                remaining.append(transaction)
+
+        if not found:
+            return False
+
+        # 삭제할 거래를 제외하고 파일 전체를 다시 저장합니다.
+        with self.file_path.open("w", encoding="utf-8") as file:
+            for transaction in remaining:
+                data = asdict(transaction)
+                file.write(json.dumps(data, ensure_ascii=False) + "\n")
+
+        return True

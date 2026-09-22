@@ -117,6 +117,16 @@ def main() -> int:
         help="출력할 거래 수 (기본값: 10)",
     )
 
+    # 거래 삭제 명령과 필수 ID 옵션을 등록합니다.
+    delete_parser = commands.add_parser(
+        "delete",
+        help="거래를 삭제합니다.",
+    )
+    delete_parser.add_argument(
+        "--id",
+        required=True,
+        help="삭제할 거래 ID",
+    )
     category_parser = commands.add_parser(
         "category",
         help="카테고리를 관리합니다.",
@@ -143,6 +153,14 @@ def main() -> int:
     
     if args.command == "list":
         return list_transactions(repository, args.limit)
+    
+    if args.command == "delete":
+        if repository.delete(args.id):
+            print(f"[삭제 완료] id={args.id}")
+            return 0
+
+        print(f"[오류] 존재하지 않는 거래입니다: {args.id}")
+        return 1
     
     if args.command == "category":
         if args.category_command == "list":
