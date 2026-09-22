@@ -126,7 +126,8 @@ def main() -> int:
     )
     category_commands.add_parser("add", help="카테고리를 추가합니다.")
     category_commands.add_parser("list", help="카테고리를 조회합니다.")
-
+    category_commands.add_parser("remove", help="카테고리를 삭제합니다.",)
+    
     args = parser.parse_args()
     data_dir = Path(args.data_dir)
 
@@ -163,6 +164,22 @@ def main() -> int:
             print("[오류] 이미 존재하는 카테고리입니다.")
             return 1
 
+        if args.category_command == "remove":
+            name = input("삭제할 카테고리명: ").strip()
+
+            if not category_store.exists(name):
+                print("[오류] 존재하지 않는 카테고리입니다.")
+                return 1
+
+            # 거래에서 사용 중인 카테고리는 삭제하지 않습니다.
+            if repository.uses_category(name):
+                print("[오류] 거래에서 사용 중인 카테고리입니다.")
+                return 1
+
+            category_store.remove(name)
+            print(f"[삭제 완료] category={name}")
+            return 0
+        
         category_parser.print_help()
         return 0
 
