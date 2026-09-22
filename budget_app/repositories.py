@@ -2,6 +2,7 @@ import json
 from collections.abc import Iterator
 from dataclasses import asdict
 from pathlib import Path
+from typing import Optional
 
 from budget_app.models import Transaction
 
@@ -112,6 +113,40 @@ class TransactionRepository:
         # 삭제할 거래를 제외하고 파일 전체를 다시 저장합니다.
         with self.file_path.open("w", encoding="utf-8") as file:
             for transaction in remaining:
+                data = asdict(transaction)
+                file.write(json.dumps(data, ensure_ascii=False) + "\n")
+
+        return True
+
+    def find_by_id(
+        self,
+        transaction_id: str,
+    ) -> Optional[Transaction]:
+        """ID가 일치하는 거래를 찾아 반환합니다."""
+        for transaction in self.stream():
+            if transaction.id == transaction_id:
+                return transaction
+
+        return None
+
+    def update(self, updated: Transaction) -> bool:
+        """같은 ID의 거래를 수정된 내용으로 교체합니다."""
+        transactions = []
+        found = False
+
+        for transaction in self.stream():
+            if transaction.id == updated.id:
+                transactions.append(updated)
+                found = True
+            else:
+                transactions.append(transaction)
+
+        if not found:
+            return False
+
+        # 수정된 거래 목록으로 파일을 다시 저장합니다.
+        with self.file_path.open("w", encoding="utf-8") as file:
+            for transaction in transactions:
                 data = asdict(transaction)
                 file.write(json.dumps(data, ensure_ascii=False) + "\n")
 
