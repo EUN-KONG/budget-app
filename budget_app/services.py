@@ -194,3 +194,44 @@ def import_transactions_csv(
         repository.add(transaction)
 
     return len(transactions)
+
+def export_transactions_csv(
+    output: Path,
+    repository: TransactionRepository,
+    month: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+) -> int:
+    """조건에 맞는 거래를 UTF-8 CSV 파일로 저장합니다."""
+    count = 0
+
+    with output.open("w", encoding="utf-8", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=CSV_COLUMNS)
+
+        # 첫 번째 줄에 CSV 열 이름을 저장합니다.
+        writer.writeheader()
+
+        # 최신 거래부터 한 건씩 읽으며 날짜 조건을 검사합니다.
+        for transaction in repository.stream_latest():
+            if month and not transaction.date.startswith(f"{month}-"):
+                continue
+
+            if date_from and transaction.date < date_from:
+                continue
+
+            if date_to and transaction.date > date_to:
+                continue
+
+            writer.writerow(
+                {
+                    "date": transaction.date,
+                    "type": transaction.type,
+                    "category": transaction.category,
+                    "amount": transaction.amount,
+                    "memo": transaction.memo,
+                    "tags": ",".join(transaction.tags),
+                }
+            )
+            count += 1
+
+    return count

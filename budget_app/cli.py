@@ -11,6 +11,7 @@ from budget_app.repositories import (
     TransactionRepository,
 )
 from budget_app.services import (
+    export_transactions_csv,
     import_transactions_csv,
     search_transactions,
     summarize_month,
@@ -340,6 +341,31 @@ def main() -> int:
         help="가져올 CSV 파일 경로",
     )
 
+    # export 명령은 출력 파일과 날짜 조건을 받습니다.
+    export_parser = commands.add_parser(
+        "export",
+        help="조건에 맞는 거래를 CSV로 내보냅니다.",
+    )
+    export_parser.add_argument(
+        "--out",
+        required=True,
+        help="생성할 CSV 파일 경로",
+    )
+    export_parser.add_argument(
+        "--month",
+        help="내보낼 월 (YYYY-MM)",
+    )
+    export_parser.add_argument(
+        "--from",
+        dest="date_from",
+        help="내보낼 시작일 (YYYY-MM-DD)",
+    )
+    export_parser.add_argument(
+        "--to",
+        dest="date_to",
+        help="내보낼 종료일 (YYYY-MM-DD)",
+    )
+
     # 터미널에서 입력받은 명령과 옵션을 분석합니다.
     args = parser.parse_args()
     data_dir = Path(args.data_dir)
@@ -515,6 +541,56 @@ def main() -> int:
             return 1
 
         print(f"[가져오기 완료] {count}건")
+        return 0
+
+    # export 명령이면 날짜 조건을 검사한 뒤 CSV 파일을 만듭니다.
+    if args.command == "export":
+        if not (args.month or args.date_from or args.date_to):
+            print(
+                "[오류] --month 또는 --from/--to 조건이 필요합니다."
+            )
+            return 1
+
+        # 월 조건과 기간 조건은 동시에 사용하지 않습니다.
+        if args.month and (args.date_from or args.date_to):
+            print("[오류] --month와 기간 조건을 함께 사용할 수 없습니다.")
+            return 1
+
+        try:
+            if args.month:
+                validate_month(args.month)
+
+            if args.date_from:
+                validate_date(args.date_from)
+
+            if args.date_to:
+                validate_date(args.date_to)
+        except ValueError as error:
+            print(f"[오류] {error}")
+            return 1
+
+        if (
+            args.date_from
+            and args.date_to
+            and args.date_from > args.date_to
+        ):
+            print("[오류] 시작일은 종료일보다 늦을 수 없습니다.")
+            return 1
+
+        try:
+            count = export_transactions_csv(
+                output=Path(args.out),
+                repository=repository,
+                month=args.month,
+                date_from=args.date_from,
+                date_to=args.date_to,
+            )
+        except OSError as error:
+            print(f"[오류] CSV 파일을 만들 수 없습니다: {error}")
+            print("[힌트] 출력 경로와 파일 권한을 확인해 주세요.")
+            return 1
+
+        print(f"[내보내기 완료] {count}건 -> {args.out}")
         return 0
     
     if args.command == "category":
