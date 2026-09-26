@@ -90,3 +90,30 @@ def search_transactions(
 
         # 모든 조건을 통과한 거래만 호출한 곳으로 전달합니다.
         yield transaction
+
+def summarize_month(
+    repository: TransactionRepository,
+    month: str,
+) -> tuple[int, int, dict[str, int]]:
+    """해당 월의 수입, 지출, 카테고리별 지출을 계산합니다."""
+    total_income = 0
+    total_expense = 0
+    category_expenses: dict[str, int] = {}
+
+    # 거래를 한 건씩 읽으며 선택한 월의 거래만 계산합니다.
+    for transaction in repository.stream():
+        if not transaction.date.startswith(f"{month}-"):
+            continue
+
+        if transaction.type == "income":
+            total_income += transaction.amount
+            continue
+
+        # 지출 총액과 해당 카테고리의 지출을 함께 더합니다.
+        total_expense += transaction.amount
+        previous_amount = category_expenses.get(transaction.category, 0)
+        category_expenses[transaction.category] = (
+            previous_amount + transaction.amount
+        )
+
+    return total_income, total_expense, category_expenses
