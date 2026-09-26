@@ -5,11 +5,16 @@ from pathlib import Path
 from typing import TypeVar
 
 from budget_app.models import Transaction
-from budget_app.repositories import CategoryStore, TransactionRepository
+from budget_app.repositories import (
+    BudgetStore,
+    CategoryStore,
+    TransactionRepository,
+)
 from budget_app.services import (
     search_transactions,
     validate_amount,
     validate_date,
+    validate_month,
     validate_type,
 )
 from budget_app.storage import initialize_data_files
@@ -281,6 +286,29 @@ def main() -> int:
     category_commands.add_parser("list", help="카테고리를 조회합니다.")
     category_commands.add_parser("remove", help="카테고리를 삭제합니다.")
 
+    # budget set 명령으로 월과 예산 금액을 입력받습니다.
+    budget_parser = commands.add_parser(
+        "budget",
+        help="월별 예산을 관리합니다.",
+    )
+    budget_commands = budget_parser.add_subparsers(
+        dest="budget_command"
+    )
+    budget_set_parser = budget_commands.add_parser(
+        "set",
+        help="월별 예산을 설정합니다.",
+    )
+    budget_set_parser.add_argument(
+        "--month",
+        required=True,
+        help="예산을 설정할 월 (YYYY-MM)",
+    )
+    budget_set_parser.add_argument(
+        "--amount",
+        required=True,
+        help="예산 금액",
+    )
+
     # 터미널에서 입력받은 명령과 옵션을 분석합니다.
     args = parser.parse_args()
     data_dir = Path(args.data_dir)
@@ -288,6 +316,8 @@ def main() -> int:
     # 저장 파일과 저장소 객체를 준비합니다.
     initialize_data_files(data_dir)
     category_store = CategoryStore(data_dir / "categories.jsonl")
+    # budgets.jsonl 파일을 관리할 예산 저장소입니다.
+    budget_store = BudgetStore(data_dir / "budgets.jsonl")
     repository = TransactionRepository(
         data_dir / "transactions.jsonl"
     )
@@ -366,6 +396,24 @@ def main() -> int:
 
         print(f"[오류] 존재하지 않는 거래입니다: {args.id}")
         return 1
+
+    # budget set 명령이면 입력을 검사한 뒤 예산을 저장합니다.
+    if args.command == "budget":
+        if args.budget_command == "set":
+            try:
+                month = validate_month(args.month)
+                amount = validate_amount(args.amount)
+            except ValueError as error:
+                print(f"[오류] {error}")
+                return 1
+
+            budget_store.set(month, amount)
+            print(f"[저장 완료] {month} 예산 {amount}원")
+            return 0
+
+        # budget 뒤에 set이 없으면 사용 방법을 출력합니다.
+        budget_parser.print_help()
+        return 0
 
     if args.command == "category":
         # category list는 저장된 이름을 한 줄씩 출력합니다.
