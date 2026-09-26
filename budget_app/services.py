@@ -1,4 +1,8 @@
+from collections.abc import Iterator
 from datetime import datetime
+
+from budget_app.models import Transaction
+from budget_app.repositories import TransactionRepository
 
 
 def validate_date(value: str) -> str:
@@ -38,3 +42,38 @@ def validate_amount(value: str) -> int:
         raise ValueError("금액은 0보다 커야 합니다.")
 
     return amount
+
+def search_transactions(
+    repository: TransactionRepository,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    category: str | None = None,
+    transaction_type: str | None = None,
+    keyword: str | None = None,
+    tag: str | None = None,
+) -> Iterator[Transaction]:
+    """조건에 맞는 거래를 최신순으로 반환합니다."""
+    # 최신 거래부터 한 건씩 읽으며 모든 검색 조건을 검사합니다.
+    for transaction in repository.stream_latest():
+        if date_from and transaction.date < date_from:
+            continue
+
+        if date_to and transaction.date > date_to:
+            continue
+
+        if category and transaction.category != category:
+            continue
+
+        if transaction_type and transaction.type != transaction_type:
+            continue
+
+        # 메모 검색은 영문 대소문자를 구분하지 않습니다.
+        if keyword and keyword.lower() not in transaction.memo.lower():
+            continue
+
+        # 태그는 목록 안에 같은 값이 있는지 확인합니다.
+        if tag and tag not in transaction.tags:
+            continue
+
+        # 모든 조건을 통과한 거래만 호출한 곳으로 전달합니다.
+        yield transaction
