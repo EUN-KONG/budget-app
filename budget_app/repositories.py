@@ -78,6 +78,35 @@ class TransactionRepository:
                     data = json.loads(line)
                     # yield는 한 건씩 전달하므로 파일 전체를 저장하지 않습니다.
                     yield Transaction(**data)
+                    
+    def stream_latest(self) -> Iterator[Transaction]:
+        """거래 파일의 마지막 줄부터 최신순으로 반환합니다."""
+        with self.file_path.open("rb") as file:
+            # 파일 끝에서부터 4096바이트씩 나누어 읽습니다.
+            file.seek(0, 2)
+            position = file.tell()
+            remaining = b""
+
+            while position > 0:
+                chunk_size = min(4096, position)
+                position -= chunk_size
+                file.seek(position)
+
+                # 이전에 잘렸던 줄을 현재 조각 뒤에 연결합니다.
+                chunk = file.read(chunk_size) + remaining
+                lines = chunk.split(b"\n")
+                remaining = lines[0]
+
+                # 현재 조각 안의 완성된 줄을 뒤에서부터 처리합니다.
+                for line in reversed(lines[1:]):
+                    if line.strip():
+                        data = json.loads(line.decode("utf-8"))
+                        yield Transaction(**data)
+
+            # 파일의 첫 번째 줄도 빠뜨리지 않고 반환합니다.
+            if remaining.strip():
+                data = json.loads(remaining.decode("utf-8"))
+                yield Transaction(**data)
 
     def add(self, transaction: Transaction) -> None:
         """거래 한 건을 JSONL 파일 끝에 저장합니다."""
