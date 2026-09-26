@@ -4,6 +4,7 @@ from collections import deque
 from pathlib import Path
 from typing import TypeVar
 
+from budget_app.decorators import handle_errors
 from budget_app.models import Transaction
 from budget_app.repositories import (
     BudgetStore,
@@ -203,7 +204,10 @@ def update_transaction(
     print(f"[수정 완료] id={updated.id}")
     return 0
 
-
+@handle_errors
+def main() -> int:
+    """가계부 프로그램의 명령어를 처리합니다."""
+    
 def main() -> int:
     """가계부 프로그램의 명령어를 처리합니다."""
     parser = argparse.ArgumentParser(
