@@ -63,7 +63,49 @@ class CategoryStore:
 
         return True
 
+class BudgetStore:
+    """월별 예산 JSONL 파일을 관리합니다."""
 
+    def __init__(self, file_path: Path) -> None:
+        self.file_path = file_path
+
+    def get(self, month: str) -> int | None:
+        """해당 월의 예산을 반환하고, 없으면 None을 반환합니다."""
+        with self.file_path.open("r", encoding="utf-8") as file:
+            for line in file:
+                if line.strip():
+                    data = json.loads(line)
+
+                    if data["month"] == month:
+                        return int(data["amount"])
+
+        return None
+
+    def set(self, month: str, amount: int) -> None:
+        """월별 예산을 새로 저장하거나 기존 값을 변경합니다."""
+        budgets = {}
+
+        # 기존 예산을 월을 키로 하는 딕셔너리에 저장합니다.
+        with self.file_path.open("r", encoding="utf-8") as file:
+            for line in file:
+                if line.strip():
+                    data = json.loads(line)
+                    budgets[data["month"]] = int(data["amount"])
+
+        # 같은 월이 있으면 새 금액으로 덮어씁니다.
+        budgets[month] = amount
+
+        # 월 순서대로 예산 파일 전체를 다시 저장합니다.
+        with self.file_path.open("w", encoding="utf-8") as file:
+            for saved_month in sorted(budgets):
+                data = {
+                    "month": saved_month,
+                    "amount": budgets[saved_month],
+                }
+                file.write(
+                    json.dumps(data, ensure_ascii=False) + "\n"
+                )
+                
 class TransactionRepository:
     """거래 JSONL 파일의 저장과 조회를 담당합니다."""
 

@@ -19,6 +19,19 @@ def validate_date(value: str) -> str:
 
     return value
 
+def validate_month(value: str) -> str:
+    """월이 YYYY-MM 형식인지 검사합니다."""
+    try:
+        # 입력 문자열을 실제 연도와 월로 바꿀 수 있는지 확인합니다.
+        parsed_month = datetime.strptime(value, "%Y-%m")
+    except ValueError:
+        raise ValueError("월은 YYYY-MM 형식이어야 합니다.")
+
+    # 2026-9처럼 자릿수가 부족한 입력도 막습니다.
+    if parsed_month.strftime("%Y-%m") != value:
+        raise ValueError("월은 YYYY-MM 형식이어야 합니다.")
+
+    return value
 
 def validate_type(value: str) -> str:
     """거래 유형이 income 또는 expense인지 검사합니다."""
