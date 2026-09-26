@@ -13,6 +13,7 @@ def initialize_data_files(data_dir: Path) -> None:
     transactions_file = data_dir / "transactions.jsonl"
     categories_file = data_dir / "categories.jsonl"
     budgets_file = data_dir / "budgets.jsonl"
+    
 
     # 거래 및 예산 파일이 없으면 빈 파일로 만듭니다.
     transactions_file.touch(exist_ok=True)

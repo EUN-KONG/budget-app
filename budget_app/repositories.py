@@ -5,6 +5,7 @@ from pathlib import Path
 
 from budget_app.models import Transaction
 
+
 class CategoryStore:
     """카테고리 JSONL 파일을 관리합니다."""
 
@@ -17,6 +18,7 @@ class CategoryStore:
 
         with self.file_path.open("r", encoding="utf-8") as file:
             for line in file:
+                # 빈 줄은 건너뛰고 JSON에서 이름만 꺼냅니다.
                 if line.strip():
                     categories.append(json.loads(line)["name"])
 
@@ -28,9 +30,11 @@ class CategoryStore:
 
     def add(self, name: str) -> bool:
         """새 카테고리를 추가하고 성공 여부를 반환합니다."""
+        # 빈 이름이나 중복된 이름은 추가하지 않습니다.
         if not name or self.exists(name):
             return False
 
+        # a 모드는 기존 내용을 유지하면서 파일 끝에 추가합니다.
         with self.file_path.open("a", encoding="utf-8") as file:
             file.write(
                 json.dumps({"name": name}, ensure_ascii=False) + "\n"
@@ -45,6 +49,7 @@ class CategoryStore:
         if name not in categories:
             return False
 
+        # 삭제할 이름을 제외한 나머지 카테고리로 파일을 다시 씁니다.
         with self.file_path.open("w", encoding="utf-8") as file:
             for category in categories:
                 if category != name:
@@ -58,6 +63,7 @@ class CategoryStore:
 
         return True
 
+
 class TransactionRepository:
     """거래 JSONL 파일의 저장과 조회를 담당합니다."""
 
@@ -70,11 +76,13 @@ class TransactionRepository:
             for line in file:
                 if line.strip():
                     data = json.loads(line)
+                    # yield는 한 건씩 전달하므로 파일 전체를 저장하지 않습니다.
                     yield Transaction(**data)
 
     def add(self, transaction: Transaction) -> None:
         """거래 한 건을 JSONL 파일 끝에 저장합니다."""
         with self.file_path.open("a", encoding="utf-8") as file:
+            # dataclass 객체를 JSON으로 저장할 수 있는 딕셔너리로 바꿉니다.
             data = asdict(transaction)
             file.write(json.dumps(data, ensure_ascii=False) + "\n")
 
@@ -83,6 +91,7 @@ class TransactionRepository:
         largest_number = 0
 
         for transaction in self.stream():
+            # TX-000001에서 숫자 부분만 꺼내 가장 큰 번호를 찾습니다.
             number = int(transaction.id.removeprefix("TX-"))
             largest_number = max(largest_number, number)
 
@@ -90,6 +99,7 @@ class TransactionRepository:
 
     def uses_category(self, category: str) -> bool:
         """해당 카테고리를 사용 중인 거래가 있는지 확인합니다."""
+        # 조건에 맞는 거래를 하나라도 찾으면 즉시 True를 반환합니다.
         return any(
             transaction.category == category
             for transaction in self.stream()
@@ -100,6 +110,7 @@ class TransactionRepository:
         remaining = []
         found = False
 
+        # 삭제할 거래를 빼고 나머지 거래만 모읍니다.
         for transaction in self.stream():
             if transaction.id == transaction_id:
                 found = True
@@ -122,6 +133,7 @@ class TransactionRepository:
         transaction_id: str,
     ) -> Transaction | None:
         """ID가 일치하는 거래를 찾아 반환합니다."""
+        # 파일을 순서대로 읽다가 ID가 같으면 바로 반환합니다.
         for transaction in self.stream():
             if transaction.id == transaction_id:
                 return transaction
@@ -133,6 +145,7 @@ class TransactionRepository:
         transactions = []
         found = False
 
+        # 같은 ID를 만나면 기존 거래 대신 수정된 거래를 담습니다.
         for transaction in self.stream():
             if transaction.id == updated.id:
                 transactions.append(updated)

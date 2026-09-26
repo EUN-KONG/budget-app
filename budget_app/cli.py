@@ -17,9 +17,11 @@ def ask_valid(prompt: str, validator: Callable[[str], T]) -> T:
     """올바른 값이 입력될 때까지 반복해서 요청합니다."""
     while True:
         try:
+            # 검사 함수를 통과한 값만 호출한 곳으로 돌려줍니다.
             return validator(input(prompt).strip())
         except ValueError as error:
             print(f"[오류] {error}")
+
 
 def ask_optional(
     prompt: str,
@@ -30,6 +32,7 @@ def ask_optional(
     while True:
         value = input(f"{prompt} [{current}]: ").strip()
 
+        # 아무것도 입력하지 않으면 수정 전 값을 사용합니다.
         if not value:
             return current
 
@@ -37,6 +40,7 @@ def ask_optional(
             return validator(value)
         except ValueError as error:
             print(f"[오류] {error}")
+
 
 def add_transaction(
     category_store: CategoryStore,
@@ -71,6 +75,7 @@ def add_transaction(
     ]
 
     transaction = Transaction(
+        # 현재 파일을 확인해 겹치지 않는 다음 ID를 사용합니다.
         id=repository.next_id(),
         type=transaction_type,
         date=date,
@@ -83,6 +88,7 @@ def add_transaction(
 
     print(f"[저장 완료] id={transaction.id}")
     return 0
+
 
 def list_transactions(
     repository: TransactionRepository,
@@ -100,6 +106,7 @@ def list_transactions(
         print("[안내] 저장된 거래가 없습니다.")
         return 0
 
+    # 파일에는 오래된 순서로 있으므로 역순으로 최신 거래부터 출력합니다.
     for transaction in reversed(recent):
         print(
             f"{transaction.id} | {transaction.date} | "
@@ -109,6 +116,7 @@ def list_transactions(
 
     return 0
 
+
 def update_transaction(
     transaction_id: str,
     category_store: CategoryStore,
@@ -117,6 +125,7 @@ def update_transaction(
     """기존 거래에서 입력한 항목만 수정합니다."""
     current = repository.find_by_id(transaction_id)
 
+    # 요청한 ID가 없으면 수정하지 않고 오류 코드 1로 종료합니다.
     if current is None:
         print(f"[오류] 존재하지 않는 거래입니다: {transaction_id}")
         return 1
@@ -167,6 +176,7 @@ def update_transaction(
         ]
 
     updated = Transaction(
+        # ID는 그대로 두고 사용자가 입력한 내용만 새 객체에 담습니다.
         id=current.id,
         type=transaction_type,
         date=date,
@@ -180,6 +190,7 @@ def update_transaction(
     print(f"[수정 완료] id={updated.id}")
     return 0
 
+
 def main() -> int:
     """가계부 프로그램의 명령어를 처리합니다."""
     parser = argparse.ArgumentParser(
@@ -191,8 +202,11 @@ def main() -> int:
         help="데이터 저장 폴더 (기본값: ./data)",
     )
 
+    # add, list, delete, category 같은 하위 명령을 등록합니다.
     commands = parser.add_subparsers(dest="command")
     commands.add_parser("add", help="거래를 추가합니다.")
+
+    # list 명령은 출력할 거래 수를 --limit으로 받습니다.
     list_parser = commands.add_parser(
         "list",
         help="최근 거래를 조회합니다.",
@@ -214,6 +228,8 @@ def main() -> int:
         required=True,
         help="삭제할 거래 ID",
     )
+
+    # category 명령 아래에 add, list, remove를 등록합니다.
     category_parser = commands.add_parser(
         "category",
         help="카테고리를 관리합니다.",
@@ -223,8 +239,9 @@ def main() -> int:
     )
     category_commands.add_parser("add", help="카테고리를 추가합니다.")
     category_commands.add_parser("list", help="카테고리를 조회합니다.")
-    category_commands.add_parser("remove", help="카테고리를 삭제합니다.",)
-    
+    category_commands.add_parser("remove", help="카테고리를 삭제합니다.")
+
+    # 터미널에서 입력받은 명령과 옵션을 분석합니다.
     args = parser.parse_args()
     data_dir = Path(args.data_dir)
 
@@ -235,12 +252,13 @@ def main() -> int:
         data_dir / "transactions.jsonl"
     )
 
+    # 입력된 명령에 맞는 기능을 실행합니다.
     if args.command == "add":
         return add_transaction(category_store, repository)
-    
+
     if args.command == "list":
         return list_transactions(repository, args.limit)
-    
+
     if args.command == "delete":
         if repository.delete(args.id):
             print(f"[삭제 완료] id={args.id}")
@@ -248,13 +266,15 @@ def main() -> int:
 
         print(f"[오류] 존재하지 않는 거래입니다: {args.id}")
         return 1
-    
+
     if args.command == "category":
+        # category list는 저장된 이름을 한 줄씩 출력합니다.
         if args.category_command == "list":
             for name in category_store.get_all():
                 print(f"- {name}")
             return 0
 
+        # category add는 사용자에게 새 이름을 입력받습니다.
         if args.category_command == "add":
             name = input("카테고리명: ").strip()
 
@@ -269,6 +289,7 @@ def main() -> int:
             print("[오류] 이미 존재하는 카테고리입니다.")
             return 1
 
+        # category remove는 없는 이름과 사용 중인 이름을 보호합니다.
         if args.category_command == "remove":
             name = input("삭제할 카테고리명: ").strip()
 
@@ -284,9 +305,11 @@ def main() -> int:
             category_store.remove(name)
             print(f"[삭제 완료] category={name}")
             return 0
-        
+
+        # category 뒤에 세부 명령이 없으면 도움말을 보여줍니다.
         category_parser.print_help()
         return 0
 
+    # 아무 명령도 입력하지 않았을 때 전체 도움말을 보여줍니다.
     parser.print_help()
     return 0
