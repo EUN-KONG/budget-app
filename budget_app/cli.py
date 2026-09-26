@@ -12,6 +12,7 @@ from budget_app.repositories import (
 )
 from budget_app.services import (
     search_transactions,
+    summarize_month,
     validate_amount,
     validate_date,
     validate_month,
@@ -309,6 +310,23 @@ def main() -> int:
         help="예산 금액",
     )
 
+    # summary 명령은 요약할 월과 출력할 카테고리 수를 받습니다.
+    summary_parser = commands.add_parser(
+        "summary",
+        help="월별 수입과 지출을 요약합니다.",
+    )
+    summary_parser.add_argument(
+        "--month",
+        required=True,
+        help="요약할 월 (YYYY-MM)",
+    )
+    summary_parser.add_argument(
+        "--top",
+        type=int,
+        default=3,
+        help="출력할 지출 카테고리 수 (기본값: 3)",
+    )
+
     # 터미널에서 입력받은 명령과 옵션을 분석합니다.
     args = parser.parse_args()
     data_dir = Path(args.data_dir)
@@ -415,6 +433,61 @@ def main() -> int:
         budget_parser.print_help()
         return 0
 
+    # summary 명령이면 월별 합계와 예산 사용 정보를 출력합니다.
+    if args.command == "summary":
+        try:
+            month = validate_month(args.month)
+        except ValueError as error:
+            print(f"[오류] {error}")
+            return 1
+
+        if args.top <= 0:
+            print("[오류] --top은 1 이상이어야 합니다.")
+            return 1
+
+        total_income, total_expense, category_expenses = (
+            summarize_month(repository, month)
+        )
+
+        # 수입과 지출이 모두 0이면 해당 월에는 거래가 없습니다.
+        if total_income == 0 and total_expense == 0:
+            print("[안내] 데이터가 없습니다.")
+            return 0
+
+        balance = total_income - total_expense
+
+        print(f"총 수입: {total_income}원")
+        print(f"총 지출: {total_expense}원")
+        print(f"잔액: {balance}원")
+
+        # 설정된 예산이 있으면 사용률과 초과 여부를 출력합니다.
+        budget = budget_store.get(month)
+
+        if budget is not None:
+            usage_rate = total_expense / budget * 100
+            print(f"예산: {budget}원 (사용률 {usage_rate:.1f}%)")
+
+            if total_expense > budget:
+                print("[경고] 월 예산을 초과했습니다.")
+
+        # 카테고리 지출액이 큰 순서대로 TOP N을 출력합니다.
+        top_categories = sorted(
+            category_expenses.items(),
+            key=lambda item: item[1],
+            reverse=True,
+        )[:args.top]
+
+        if top_categories:
+            print(f"\n지출 TOP {args.top}")
+
+            for rank, (category, amount) in enumerate(
+                top_categories,
+                start=1,
+            ):
+                print(f"{rank}) {category} {amount}원")
+
+        return 0
+    
     if args.command == "category":
         # category list는 저장된 이름을 한 줄씩 출력합니다.
         if args.category_command == "list":
