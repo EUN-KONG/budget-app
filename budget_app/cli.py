@@ -21,6 +21,22 @@ def ask_valid(prompt: str, validator: Callable[[str], T]) -> T:
         except ValueError as error:
             print(f"[오류] {error}")
 
+def ask_optional(
+    prompt: str,
+    current: T,
+    validator: Callable[[str], T],
+) -> T:
+    """새 값이 없으면 기존 값을 유지합니다."""
+    while True:
+        value = input(f"{prompt} [{current}]: ").strip()
+
+        if not value:
+            return current
+
+        try:
+            return validator(value)
+        except ValueError as error:
+            print(f"[오류] {error}")
 
 def add_transaction(
     category_store: CategoryStore,
@@ -91,6 +107,77 @@ def list_transactions(
             f"{transaction.amount} | {transaction.memo}"
         )
 
+    return 0
+
+def update_transaction(
+    transaction_id: str,
+    category_store: CategoryStore,
+    repository: TransactionRepository,
+) -> int:
+    """기존 거래에서 입력한 항목만 수정합니다."""
+    current = repository.find_by_id(transaction_id)
+
+    if current is None:
+        print(f"[오류] 존재하지 않는 거래입니다: {transaction_id}")
+        return 1
+
+    date = ask_optional("날짜", current.date, validate_date)
+    transaction_type = ask_optional(
+        "타입",
+        current.type,
+        validate_type,
+    )
+
+    # 엔터를 누르면 기존 카테고리를 유지합니다.
+    while True:
+        category = input(f"카테고리 [{current.category}]: ").strip()
+
+        if not category:
+            category = current.category
+            break
+
+        if category_store.exists(category):
+            break
+
+        print("[오류] 등록되지 않은 카테고리입니다.")
+
+    amount = ask_optional("금액", current.amount, validate_amount)
+
+    # 메모와 태그에서 '-'를 입력하면 기존 값을 삭제합니다.
+    memo_input = input(
+        f"메모 [{current.memo}] (엔터: 유지, -: 삭제): "
+    ).strip()
+    memo = current.memo if not memo_input else memo_input
+    if memo_input == "-":
+        memo = ""
+
+    tags_input = input(
+        f"태그 [{','.join(current.tags)}] (엔터: 유지, -: 삭제): "
+    ).strip()
+
+    if not tags_input:
+        tags = current.tags
+    elif tags_input == "-":
+        tags = []
+    else:
+        tags = [
+            tag.strip()
+            for tag in tags_input.split(",")
+            if tag.strip()
+        ]
+
+    updated = Transaction(
+        id=current.id,
+        type=transaction_type,
+        date=date,
+        amount=amount,
+        category=category,
+        memo=memo,
+        tags=tags,
+    )
+    repository.update(updated)
+
+    print(f"[수정 완료] id={updated.id}")
     return 0
 
 def main() -> int:
