@@ -6,7 +6,12 @@ from typing import TypeVar
 
 from budget_app.models import Transaction
 from budget_app.repositories import CategoryStore, TransactionRepository
-from budget_app.services import validate_amount, validate_date, validate_type
+from budget_app.services import (
+    search_transactions,
+    validate_amount,
+    validate_date,
+    validate_type,
+)
 from budget_app.storage import initialize_data_files
 
 
@@ -218,6 +223,30 @@ def main() -> int:
         help="출력할 거래 수 (기본값: 10)",
     )
 
+    # search 명령에서 사용할 검색 조건 6개를 등록합니다.
+    search_parser = commands.add_parser(
+        "search",
+        help="조건에 맞는 거래를 검색합니다.",
+    )
+    search_parser.add_argument(
+        "--from",
+        dest="date_from",
+        help="검색 시작일 (YYYY-MM-DD)",
+    )
+    search_parser.add_argument(
+        "--to",
+        dest="date_to",
+        help="검색 종료일 (YYYY-MM-DD)",
+    )
+    search_parser.add_argument("--category", help="카테고리")
+    search_parser.add_argument(
+        "--type",
+        dest="transaction_type",
+        help="거래 타입 (income/expense)",
+    )
+    search_parser.add_argument("--q", help="메모 검색어")
+    search_parser.add_argument("--tag", help="태그")
+
     # update 명령은 수정할 거래의 ID를 필수로 받습니다.
     update_parser = commands.add_parser(
         "update",
@@ -270,6 +299,58 @@ def main() -> int:
     if args.command == "list":
         return list_transactions(repository, args.limit)
 
+    # search 명령이면 입력된 조건을 검사한 뒤 거래를 검색합니다.
+    if args.command == "search":
+        try:
+            if args.date_from:
+                validate_date(args.date_from)
+
+            if args.date_to:
+                validate_date(args.date_to)
+
+            if args.transaction_type:
+                validate_type(args.transaction_type)
+        except ValueError as error:
+            print(f"[오류] {error}")
+            return 1
+
+        # 시작일이 종료일보다 늦은 잘못된 기간을 막습니다.
+        if (
+            args.date_from
+            and args.date_to
+            and args.date_from > args.date_to
+        ):
+            print("[오류] 시작일은 종료일보다 늦을 수 없습니다.")
+            return 1
+
+        # 등록되지 않은 카테고리는 검색 조건으로 사용할 수 없습니다.
+        if args.category and not category_store.exists(args.category):
+            print("[오류] 등록되지 않은 카테고리입니다.")
+            return 1
+
+        found = False
+
+        for transaction in search_transactions(
+            repository=repository,
+            date_from=args.date_from,
+            date_to=args.date_to,
+            category=args.category,
+            transaction_type=args.transaction_type,
+            keyword=args.q,
+            tag=args.tag,
+        ):
+            found = True
+            print(
+                f"{transaction.id} | {transaction.date} | "
+                f"{transaction.type} | {transaction.category} | "
+                f"{transaction.amount} | {transaction.memo}"
+            )
+
+        if not found:
+            print("[안내] 검색 결과가 없습니다.")
+
+        return 0
+    
     # update 명령이면 해당 ID의 거래를 대화형으로 수정합니다.
     if args.command == "update":
         return update_transaction(
