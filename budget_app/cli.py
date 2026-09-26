@@ -218,6 +218,17 @@ def main() -> int:
         help="출력할 거래 수 (기본값: 10)",
     )
 
+    # update 명령은 수정할 거래의 ID를 필수로 받습니다.
+    update_parser = commands.add_parser(
+        "update",
+        help="거래를 수정합니다.",
+    )
+    update_parser.add_argument(
+        "--id",
+        required=True,
+        help="수정할 거래 ID",
+    )
+
     # 거래 삭제 명령과 필수 ID 옵션을 등록합니다.
     delete_parser = commands.add_parser(
         "delete",
@@ -259,6 +270,14 @@ def main() -> int:
     if args.command == "list":
         return list_transactions(repository, args.limit)
 
+    # update 명령이면 해당 ID의 거래를 대화형으로 수정합니다.
+    if args.command == "update":
+        return update_transaction(
+            args.id,
+            category_store,
+            repository,
+        )
+    
     if args.command == "delete":
         if repository.delete(args.id):
             print(f"[삭제 완료] id={args.id}")
