@@ -11,6 +11,7 @@ from budget_app.repositories import (
     TransactionRepository,
 )
 from budget_app.services import (
+    import_transactions_csv,
     search_transactions,
     summarize_month,
     validate_amount,
@@ -327,6 +328,18 @@ def main() -> int:
         help="출력할 지출 카테고리 수 (기본값: 3)",
     )
 
+    # import 명령은 가져올 CSV 파일 경로를 받습니다.
+    import_parser = commands.add_parser(
+        "import",
+        help="CSV 파일에서 거래를 가져옵니다.",
+    )
+    import_parser.add_argument(
+        "--from",
+        dest="source",
+        required=True,
+        help="가져올 CSV 파일 경로",
+    )
+
     # 터미널에서 입력받은 명령과 옵션을 분석합니다.
     args = parser.parse_args()
     data_dir = Path(args.data_dir)
@@ -486,6 +499,22 @@ def main() -> int:
             ):
                 print(f"{rank}) {category} {amount}원")
 
+        return 0
+
+    # import 명령이면 CSV 내용을 검사하고 거래 파일에 저장합니다.
+    if args.command == "import":
+        try:
+            count = import_transactions_csv(
+                source=Path(args.source),
+                category_store=category_store,
+                repository=repository,
+            )
+        except (OSError, ValueError) as error:
+            print(f"[오류] {error}")
+            print("[힌트] CSV 경로, 헤더, 입력값을 확인해 주세요.")
+            return 1
+
+        print(f"[가져오기 완료] {count}건")
         return 0
     
     if args.command == "category":

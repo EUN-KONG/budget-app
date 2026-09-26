@@ -1,9 +1,13 @@
+import csv
 from collections.abc import Iterator
 from datetime import datetime
+from pathlib import Path
 
 from budget_app.models import Transaction
-from budget_app.repositories import TransactionRepository
+from budget_app.repositories import CategoryStore, TransactionRepository
 
+# 가져오기와 내보내기에서 공통으로 사용하는 CSV 열 순서입니다.
+CSV_COLUMNS = ["date", "type", "category", "amount", "memo", "tags"]
 
 def validate_date(value: str) -> str:
     """날짜가 YYYY-MM-DD 형식인지 검사합니다."""
@@ -117,3 +121,76 @@ def summarize_month(
         )
 
     return total_income, total_expense, category_expenses
+
+def import_transactions_csv(
+    source: Path,
+    category_store: CategoryStore,
+    repository: TransactionRepository,
+) -> int:
+    """CSV 거래를 검사한 뒤 JSONL 파일에 저장합니다."""
+    if not source.is_file():
+        raise ValueError("CSV 파일을 찾을 수 없습니다.")
+
+    transactions = []
+
+    # utf-8-sig는 일반 UTF-8과 BOM이 포함된 UTF-8을 모두 읽습니다.
+    with source.open("r", encoding="utf-8-sig", newline="") as file:
+        reader = csv.DictReader(file)
+
+        # 필수 열이 하나라도 없으면 가져오기를 중단합니다.
+        if (
+            reader.fieldnames is None
+            or not set(CSV_COLUMNS).issubset(reader.fieldnames)
+        ):
+            raise ValueError(
+                "CSV 헤더는 date, type, category, amount, "
+                "memo, tags를 포함해야 합니다."
+            )
+
+        for row_number, row in enumerate(reader, start=2):
+            try:
+                date = validate_date((row["date"] or "").strip())
+                transaction_type = validate_type(
+                    (row["type"] or "").strip()
+                )
+                category = (row["category"] or "").strip()
+                amount = validate_amount((row["amount"] or "").strip())
+
+                if not category_store.exists(category):
+                    raise ValueError(
+                        f"등록되지 않은 카테고리입니다: {category}"
+                    )
+            except ValueError as error:
+                # 사용자가 CSV에서 잘못된 줄을 바로 찾을 수 있게 합니다.
+                raise ValueError(
+                    f"CSV {row_number}행 오류: {error}"
+                ) from error
+
+            memo = (row["memo"] or "").strip()
+            tags = [
+                tag.strip()
+                for tag in (row["tags"] or "").split(",")
+                if tag.strip()
+            ]
+
+            # 모든 행의 검사가 끝날 때까지 ID 없이 임시 보관합니다.
+            transactions.append(
+                Transaction(
+                    id="",
+                    type=transaction_type,
+                    date=date,
+                    amount=amount,
+                    category=category,
+                    memo=memo,
+                    tags=tags,
+                )
+            )
+
+    # 기존 마지막 ID 다음 번호부터 순서대로 ID를 부여합니다.
+    next_number = int(repository.next_id().removeprefix("TX-"))
+
+    for offset, transaction in enumerate(transactions):
+        transaction.id = f"TX-{next_number + offset:06d}"
+        repository.add(transaction)
+
+    return len(transactions)
