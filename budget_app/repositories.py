@@ -157,6 +157,13 @@ class TransactionRepository:
             data = asdict(transaction)
             file.write(json.dumps(data, ensure_ascii=False) + "\n")
 
+    def _save_all(self, transactions: list[Transaction]) -> None:
+        """거래 목록으로 파일 전체를 다시 저장합니다."""
+        with self.file_path.open("w", encoding="utf-8") as file:
+            for transaction in transactions:
+                data = asdict(transaction)
+                file.write(json.dumps(data, ensure_ascii=False) + "\n")
+
     def next_id(self) -> str:
         """현재 거래 다음에 사용할 고유 ID를 만듭니다."""
         largest_number = 0
@@ -192,11 +199,7 @@ class TransactionRepository:
             return False
 
         # 삭제할 거래를 제외하고 파일 전체를 다시 저장합니다.
-        with self.file_path.open("w", encoding="utf-8") as file:
-            for transaction in remaining:
-                data = asdict(transaction)
-                file.write(json.dumps(data, ensure_ascii=False) + "\n")
-
+        self._save_all(remaining)
         return True
 
     def find_by_id(
@@ -228,9 +231,5 @@ class TransactionRepository:
             return False
 
         # 수정된 거래 목록으로 파일을 다시 저장합니다.
-        with self.file_path.open("w", encoding="utf-8") as file:
-            for transaction in transactions:
-                data = asdict(transaction)
-                file.write(json.dumps(data, ensure_ascii=False) + "\n")
-
+        self._save_all(transactions)
         return True
